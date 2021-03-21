@@ -1,0 +1,843 @@
+package module.fiscal;
+
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.sql.SQLException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.swing.DefaultListModel;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.event.ChangeEvent;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableColumn;
+import javax.swing.text.MaskFormatter;
+
+import global.Status;
+import global.util.*;
+import global.util.pilha.LinkedQueueque;
+import module.cliente.Cliente;
+import module.cliente.ClienteDAO;
+import module.usuario.Usuario;
+import module.versao.Versao;
+import module.versao.VersaoDAO;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.mail.EmailException;
+
+
+public class FiscalController {
+
+    private final FiscalGUI view;
+    private final FiscalHelper helper;
+    private final Usuario usuarioLogado;
+
+    private JList<String> listFiles;
+
+    private JButton btnFirstRegTable;
+    private JButton btnBackRegTable;
+    private JButton btnNextRegTable;
+    private JButton btnEndRegTable;
+
+    private JButton btnGerarFiscal;
+    private JButton btnEnviarPendentes;
+    private JButton btnCarregarArquivos;
+
+    private JButton btnAguardaEnvio;
+    private JButton btnConcluirManual;
+    private JButton btnClienteEnviou;
+    private JButton btnClienteNoEmitiu;
+    private JButton btnResetaStatus;
+
+    private JButton btnEnviarEmail;
+    private JButton btnConfigSMTP;
+
+    private JComboBox<String> cmbMesFiscal;
+    private JComboBox<String> cmbAnoFiscal;
+
+    private JTextField txtPesquisa;
+
+    private ClienteDAO clienteDAO;
+    private FiscalDAO fiscalDAO;
+
+    private LoadingFile loadFiles;
+
+    private JList<File> panel_drag_drop;
+    private JButton btnSalvarArquivos;
+    private JButton btnAnydesk;
+
+    private LinkedQueueque<Integer> tarefaEnviarEmail;
+
+    private Runnable threadEmail;
+    private int threadEmailContador = 0;
+    private boolean running;
+
+    private MaskFormatter maskData;
+
+    private int mes;
+    private int ano;
+    private Cliente cliente;
+    private DefaultListModel<File> defaultListModelFile;
+
+    public FiscalController(Usuario usuarioLogado) {
+        this.usuarioLogado = usuarioLogado;
+
+        defaultListModelFile = new DefaultListModel<File>();
+
+        this.view = new FiscalGUI();
+        this.helper = new FiscalHelper(view);
+
+        clienteDAO = new ClienteDAO();
+        fiscalDAO = new FiscalDAO();
+        loadFiles = new LoadingFile();
+        init_controller();
+
+        tarefaEnviarEmail = new LinkedQueueque<>();
+
+        running = false;
+
+//		try {
+//			maskData = new MaskFormatter("##.###.###/####-##");
+//		} catch (ParseException e1) {
+//			// TODO Auto-generated catch block
+//			e1.printStackTrace();
+//		}
+
+        threadEmail = new Runnable() {
+            // modelo dos filosofos
+            //
+            public void run() {
+                while (running) {
+//					try {
+//						Thread.sleep(1000);
+//					} catch (InterruptedException e) {
+//						// TODO Auto-generated catch block
+//						e.printStackTrace();
+//					}
+
+//                    System.out.println(
+//                            "Thread executou = " + (++threadEmailContador) + " Vazia? " + tarefaEnviarEmail.isEmpty());
+                    if (tarefaEnviarEmail.isEmpty()) {
+                        running = false;
+                        helper.mostrarProgress(false);
+                        return;
+                    } else {
+                        ++threadEmailContador;
+                        helper.mostrarProgress(true);
+                        helper.atualizaProgress(threadEmailContador, tarefaEnviarEmail.size());
+                        executarTarefaPendente();
+                    }
+                }
+
+            }
+
+        };
+    }
+
+    @SuppressWarnings("serial")
+    public void init_controller() {
+        this.carregaCmbVersao();
+        this.carregaCmbMesFiscal();
+        this.carregaCmbAnoFiscal();
+
+        maskData = null;
+        try {
+            maskData = new MaskFormatter("##.###.###/####-##");
+            maskData.setValidCharacters("1234567890");
+            maskData.setValueContainsLiteralCharacters(false);
+//			"99.999.999/9999-99"(67) 9 9999-9999
+        } catch (ParseException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
+        maskData.install(view.getTxtCNPJ());
+
+//	    MaskFormatter maskCep = new MaskFormatter("#####-###"); 
+//	    maskCep.install(jCepResidencial);
+//	    maskCep.install(jCepComercial);
+
+        txtPesquisa = view.getTxtPesquisa();
+
+        cmbMesFiscal = view.getCmbMesFiscal();
+        cmbAnoFiscal = view.getCmbAnoFiscal();
+
+        btnGerarFiscal = view.getBtnGerarFiscal();
+        btnEnviarPendentes = view.getBtnEnviarPendentes();
+        btnCarregarArquivos = view.getBtnCarregarArquivos();
+        listFiles = view.getListFiles();
+
+        btnConfigSMTP = view.getBtnConfigSMTP();
+        btnEnviarEmail = view.getBtnEnviarEmail();
+
+        panel_drag_drop = view.getPanel_drag_drop();
+//		view.setPanel_drag_drop(panel_drag_drop);
+        panel_drag_drop.setDragEnabled(true);
+        panel_drag_drop.setTransferHandler(new FileListTransferHandler(panel_drag_drop));
+
+        btnSalvarArquivos = view.getBtnSalvarArquivos();
+        btnSalvarArquivos.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                /** @FIXME panel_drag_drop */
+                salvarArquivosNaPastaCliente();
+
+            }
+        });
+
+        JTable table = view.getTable();
+//		table.getTableHeader().addMouseListener(new MouseAdapter() {
+//
+//			@Override
+//			public void mousePressed(MouseEvent evt) {
+//				// capture start of resize
+//				if (evt.getSource() instanceof JTableHeader) {
+//					TableColumn tc = ((JTableHeader) evt.getSource()).getResizingColumn();
+//					System.out.println(tc.getModelIndex() + " " + tc.getPreferredWidth());
+////						if (tc != null) {
+////							resizing = true;
+////							resizingColumn = tc.getModelIndex();
+////							oldWidth = tc.getPreferredWidth();
+////						} else {
+////							resizingColumn = -1;
+////							oldWidth = -1;
+////						}
+//				}
+//			}
+//		});
+
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent evt) {
+
+                if (evt.getClickCount() == 2) {
+                    evt.consume();
+//					JTable table = view.getTable();
+                    carregaFormDetalhe();
+                    helper.focusInTabCad(1);
+                }
+            }
+
+        });
+
+        JComboBox<Versao> cmbVersao = view.getCmbVersao();
+        cmbVersao.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+//				Object item = evt.getSource();
+
+//				System.out.println("ID: " + cmbVersao.getSelectedIndex() + " Value: " + cmbVersao.getSelectedItem().toString());
+            }
+        });
+
+        txtPesquisa.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    pesquisaPor(txtPesquisa.getText());
+                }
+
+            }
+        });
+
+        cmbMesFiscal.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                mes = view.getCmbMesFiscal().getSelectedIndex() + 1;
+
+                atualizaTabela();
+            }
+        });
+
+        cmbAnoFiscal.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                ano = Integer.parseInt(view.getCmbAnoFiscal().getSelectedItem().toString());
+                atualizaTabela();
+            }
+        });
+
+        btnGerarFiscal.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                System.out.println("Não implementado! - btnGerarFiscal");
+
+                new Thread(() -> {
+                    GeradorFiscal gerFiscal = new GeradorFiscal();
+//					int mes = view.getCmbMesFiscal().getSelectedIndex() + 1;
+//					int ano = Integer.parseInt(view.getCmbAnoFiscal().getSelectedItem().toString());
+
+                    try {
+                        System.out.println(
+                                gerFiscal.gerarFiscal(clienteDAO.selectAll(), mes, ano) + " " + mes + " " + ano);
+                    } catch (SQLException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+
+//					atualizaTabela();
+                }).start();
+                ;
+            }
+
+        });
+
+        btnCarregarArquivos.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+
+                preencheListaArquivos(cliente.getSerial());
+            }
+        });
+
+        btnConfigSMTP.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                System.out.println("Não implementado! - btnConfigSMTP");
+            }
+        });
+
+        btnEnviarEmail.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+
+//				lstFiscal = fiscalDAO.selectFilterClienteMesAno(cliente, mes, ano);
+                enviaEmail(cliente.getId());
+            }
+        });
+        btnEnviarPendentes.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+//				System.out.println("Não implementado! - btnEnviarPendentes");
+                List<Cliente> lstCliente = null;
+                try {
+                    lstCliente = clienteDAO.selectAll();
+                } catch (SQLException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+//				int mes = view.getCmbMesFiscal().getSelectedIndex() + 1;
+//				int ano = Integer.parseInt(view.getCmbAnoFiscal().getSelectedItem().toString());
+                if (lstCliente != null) {
+                    for (Cliente cliente1 : lstCliente) {
+
+                        Fiscal fiscal = null;
+                        try {
+                            fiscal = fiscalDAO.selectFilterClienteMesAno(cliente1, mes, ano).get(0);
+                        } catch (SQLException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                        if ((fiscal.getStatus() == Status.AGUARDANDO_ENVIO || fiscal.getStatus() == Status.FALHA_ENVIO) && fiscal != null) {
+                            carregaForm(cliente1.getId());
+                            helper.focusInTabCad(1);
+
+                            if (JOptionPane.showConfirmDialog(null,
+                                    "Confera os dados! \n Antes de enviar, \n Posso enviar?", "Atenção!!!",
+                                    JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                                enviaEmail(cliente1.getId());
+                            }
+                        }
+                    }
+                    atualizaTabela();
+                }
+            }
+        });
+        btnAguardaEnvio = view.getBtnAguardaEnvio();
+        btnConcluirManual = view.getBtnConcluirManual();
+        btnClienteEnviou = view.getBtnClienteEnviou();
+        btnClienteNoEmitiu = view.getBtnClienteNoEmitiu();
+        btnResetaStatus = view.getBtnResetaStatus();
+
+        btnResetaStatus.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                atualizaStatusFiscal(Status.PENDENTE);
+            }
+        });
+
+        btnAguardaEnvio.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                atualizaStatusFiscal(Status.AGUARDANDO_ENVIO);
+            }
+        });
+
+        btnConcluirManual.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                atualizaStatusFiscal(Status.CONCLUIDO_MANUAL);
+            }
+        });
+        btnClienteEnviou.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                atualizaStatusFiscal(Status.CLIENTE_ENVIOU);
+            }
+        });
+        btnClienteNoEmitiu.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                atualizaStatusFiscal(Status.NAO_GEROU_DOC_FISCAL);
+            }
+        });
+
+        btnFirstRegTable = view.getBtnFirstRegTable();
+        btnBackRegTable = view.getBtnBackRegTable();
+        btnNextRegTable = view.getBtnNextRegTable();
+        btnEndRegTable = view.getBtnEndRegTable();
+
+        btnFirstRegTable.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                moveRegTable(0);
+            }
+        });
+        btnBackRegTable.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                moveRegTable(1);
+            }
+        });
+        btnNextRegTable.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                moveRegTable(2);
+            }
+        });
+        btnEndRegTable.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                moveRegTable(3);
+            }
+        });
+        this.btnAnydesk = view.getBtnAnydesk();
+        Icon tIcon = new ImageIcon();
+        try {
+            tIcon = new ImageIcon(getClass().getResource("/imagens/anydesk_icon18x18.png"));
+//			panel_drag_drop.setIcon(tIcon);
+        } catch (Exception e) {
+            tIcon = null;
+        }
+        if (tIcon == null) {
+            try {
+                tIcon = new ImageIcon(getClass().getResource("/resources/imagens/anydesk_icon18x18.png"));
+//				panel_drag_drop.setIcon(tIcon);
+            } catch (Exception e) {
+
+            }
+        }
+        btnAnydesk.setIcon(tIcon);
+        btnAnydesk.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                try {
+                    boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
+
+                    ProcessBuilder processBuilder = new ProcessBuilder();
+
+                    if (isWindows) {
+                        processBuilder.command("cmd.exe", "/c", "anydesk " + view.getTxtIdRemoto().getText());
+                    } else {
+                        processBuilder.command("sh", "-c", "anydesk " + view.getTxtIdRemoto().getText());
+                    }
+                    processBuilder.start();
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
+//		lblAnydesk.
+        mes = view.getCmbMesFiscal().getSelectedIndex() + 1;
+        ano = Integer.parseInt(view.getCmbAnoFiscal().getSelectedItem().toString());
+        this.atualizaTabela();
+    }
+
+    protected void carregaFormDetalhe() {
+        int row = view.getTable().getSelectedRow();
+
+        int id = (Integer) view.getTable().getModel().getValueAt(row, 0);
+        /**
+         * @FIXME getClienteTableId mudar para id do fiscal e fazer busca para retornar
+         *        id do cliente talves isso resolva SELECT C.* FROM CLIENTE AS C, FISCAL
+         *        AS F WHERE C.ID = F.CLIENTE_ID AND F.ID=?;
+         */
+        int id_cliente = -1;
+
+        id_cliente = fiscalDAO.selectPerID(id).getCliente().getId(); // @FIXME JPA ARRUMAR URGENTE!
+
+        if (id_cliente > -1) {
+            carregaForm(id_cliente);
+        }
+
+    }
+
+    protected void moveRegTable(int action) {
+//		view.getTable().getModel();
+        int index = view.getTable().getSelectedRow();
+        System.out.println("1 - moveRegTable: sel_row_index: " + index + " action: " + action);
+        switch (action) {
+            case 0:
+                index = 0;
+                break;
+            case 1:
+                index--;// = (index + view.getTable().getRowCount() - 1) %
+                // view.getTable().getRowCount();
+                break;
+            case 2:
+                index++;// = (index + 1) % view.getTable().getRowCount();
+                break;
+            case 3:
+                index = view.getTable().getRowCount() - 1;
+                break;
+            default:
+                break;
+        }
+        panel_drag_drop.setModel(defaultListModelFile);
+        System.out.println("2 - moveRegTable: sel_row_index: " + index + " action: " + action);
+        System.out.println("3 - moveRegTable: index>-1 && menor q: " + view.getTable().getRowCount() + " = "
+                + (index > -1 && index < view.getTable().getRowCount()));
+        if (index > -1 && index < view.getTable().getRowCount()) {
+            selecionaRow(index);
+            carregaFormDetalhe();
+        }
+    }
+
+    private void selecionaRow(int index) {
+        view.getTable().setRowSelectionInterval(index, index);
+        view.getTable().scrollRectToVisible(view.getTable().getCellRect(index, 0, true));
+    }
+
+    private int getIdFiscal() {
+        return (Integer) view.getTable().getModel().getValueAt(view.getTable().getSelectedRow(), 0);
+    }
+
+    private Fiscal getFiscal() {
+        return new FiscalDAO().selectPerID(getIdFiscal());
+    }
+
+    private void salvarArquivosNaPastaCliente() {
+        if (cliente == null)
+            return;
+
+        DefaultListModel<File> model = (DefaultListModel<File>) panel_drag_drop.getModel();
+
+        String folder = loadFiles.getPathFolder(cliente.getSerial());
+        File directory = new File(folder);
+        Path path;
+        if (!directory.exists()) {
+            directory.mkdirs();
+        }
+        for (int i = 0, sz = model.getSize(); i < sz; i++) {
+
+            path = Paths.get(model.getElementAt(i).toString());
+
+            File source = path.toFile();
+            File destination = new File(folder + path.getFileName().toString());
+
+            try {
+                copiarArquivosClientePasta(source, destination);
+                System.out.println("Salvo em + " + destination.getPath());
+            } catch (IOException e) {
+                // e.printStackTrace();
+                System.out.println("Falha ao salvar em + " + destination.getPath());
+            }
+
+        }
+
+        preencheListaArquivos(cliente.getSerial());
+
+        panel_drag_drop.setModel(defaultListModelFile);
+
+        atualizaStatusFiscal(Status.AGUARDANDO_ENVIO);
+    }
+
+    /**
+     * https://www.guj.com.br/t/copiar-arquivo-para-outro-diretorio/131127/13
+     * ViniGodoy
+     *
+     * @throws IOException
+     */
+    @SuppressWarnings("resource")
+    private void copiarArquivosClientePasta(File source, File destination) throws IOException {
+        if (destination.exists())
+            destination.delete();
+
+        FileChannel sourceChannel = null;
+        FileChannel destinationChannel = null;
+
+        try {
+            sourceChannel = new FileInputStream(source).getChannel();
+            destinationChannel = new FileOutputStream(destination).getChannel();
+            sourceChannel.transferTo(0, sourceChannel.size(), destinationChannel);
+        } finally {
+            if (sourceChannel != null && sourceChannel.isOpen())
+                sourceChannel.close();
+            if (destinationChannel != null && destinationChannel.isOpen())
+                destinationChannel.close();
+        }
+    }
+
+    public void preencheListaArquivos(String serial) {
+        DefaultListModel<String> listModel = new DefaultListModel<String>();
+
+        // Código da tarefa a ser executada
+        List<Path> files = loadFiles.getFilesFolderPath(serial);
+        if (files != null) {
+            for (Path file : files) {
+                listModel.addElement(file.getFileName().toString());
+            }
+        }
+
+        listFiles.setModel(listModel);
+
+    }
+
+    public void enviaEmail(int id) {
+
+        /** @FIXME WALMIR #### */
+
+//		new Thread(() -> {
+
+        if (tarefaEnviarEmail == null) {
+            tarefaEnviarEmail = new LinkedQueueque<>();
+        }
+        if (!tarefaEnviarEmail.buscar(id)) {
+            tarefaEnviarEmail.add(id);
+        } else {
+            System.out.println("Está email ja foi adicionado na lista de processamento!");
+        }
+
+//		}).start();
+        if (!this.running) {
+            this.running = true;
+            new Thread(threadEmail).start();
+        }
+    }
+
+    public String obterMesString(int mes) {
+        String[] meses = {"JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"};
+        return meses[mes];
+    }
+
+    private void carregaCmbMesFiscal() {
+        ArrayList<String> lstMes = new ArrayList<String>(Arrays.asList("Janeiro", "Fevereiro", "Março", "Abril", "Maio",
+                "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"));
+
+        helper.preencherCmbMesFiscal(lstMes);
+    }
+
+    private void carregaCmbAnoFiscal() {
+        ArrayList<String> lstAno = new ArrayList<String>(Arrays.asList("2019", "2020", "2021", "2022", "2023"));
+
+        helper.preencherCmbAnoFiscal(lstAno);
+
+    }
+
+    public void carregaCmbVersao() {
+        VersaoDAO versaoDAO = new VersaoDAO();
+
+        List<Versao> lstVersao = null;
+        try {
+            lstVersao = versaoDAO.selectAll();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        helper.preencherCmbVersao(lstVersao);
+    }
+
+    public void atualizaTabela() {
+//		FiscalDAO fiscalDAO = new FiscalDAO();
+
+//		int mes = view.getCmbMesFiscal().getSelectedIndex() + 1;
+//		int ano = Integer.parseInt(view.getCmbAnoFiscal().getSelectedItem().toString());
+
+        DefaultTableModel tableModel = null;
+        try {
+            tableModel = fiscalDAO.selectFilterMesAno(mes, ano);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        helper.preencherTabela(tableModel);
+
+    }
+
+    public void pesquisaPor(String value) {
+
+        int index = view.getTable().getSelectedColumn();
+//		int mes = view.getCmbMesFiscal().getSelectedIndex() + 1;
+//		int ano = Integer.parseInt(view.getCmbAnoFiscal().getSelectedItem().toString());
+
+        DefaultTableModel tableModel = null;
+        try {
+            tableModel = fiscalDAO.selectFilter(value, index, mes, ano);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        helper.preencherTabela(tableModel);
+    }
+
+    public void carregaForm(int id) {
+        try {
+
+            this.cliente = clienteDAO.selectPerID(id);
+
+            helper.preencherCampos(cliente);
+
+            preencheListaArquivos(cliente.getSerial());
+        } catch (Exception e) {
+            System.out.println("ID não encontrado!");
+        }
+    }
+
+    private void regLogFileEmail(String log) {
+        String pathFile = null;
+        try {
+            pathFile = Config.getConfiguracao().getString("path_log_email");
+        } catch (ConfigurationException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        } catch (IOException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
+//		System.out.println("|" + pathFile + "|");
+        File f = new File(pathFile);
+        if (!f.exists()) {
+            // Does not Exists
+            try {
+                f.mkdirs();
+                f.createNewFile();
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+//				 e.printStackTrace();
+                System.out.println("Falha ao criar arquivo de log - email");
+            }
+        }
+        // System.out.println("regLogFileEmail arquivo de log - email");
+        if (pathFile != null)
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(pathFile, true))) {
+                writer.write(log);
+                writer.newLine();
+                writer.flush();
+                writer.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+    }
+
+    private void executarTarefaPendente() {
+
+        List<Path> listaArquivos;
+
+        Cliente cliente = null;
+        Fiscal fiscal = null;
+
+        String cnpj = null;
+        String log = "";
+        int id;
+
+        while (!tarefaEnviarEmail.isEmpty()) {
+            id = tarefaEnviarEmail.remove();
+            log = "";
+            try {
+                cliente = clienteDAO.selectPerID(id);
+                fiscal = fiscalDAO.selectFilterClienteMesAno(cliente, mes, ano).get(0);
+            } catch (SQLException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            if (fiscal.getStatus() == Status.PENDENTE || fiscal.getStatus() == Status.CONCLUIDO || fiscal == null)
+                return;
+
+            try {
+                cnpj = maskData.valueToString(fiscal.getCliente().getCnpj());
+            } catch (ParseException e1) {
+                // TODO Auto-generated catch block
+                System.out.println("ERRO");
+                System.out.println(fiscal.getCliente().getCnpj());
+//				e1.printStackTrace();
+            }
+
+            listaArquivos = loadFiles.getFilesFolderPath(fiscal.getCliente().getSerial());
+
+            if (listaArquivos != null) {
+                CommonsMail email = new CommonsMail();
+                email.addAnexo(listaArquivos);
+                email.setDestinatario_email(fiscal.getCliente().getContador().getEmail());
+                email.setDestinatario_nome(fiscal.getCliente().getContador().getNome());
+                email.setMsg("Segue em anexo, os arquivos fiscais, \n\n\n att. Walmir Luiz"); // username
+                // usuario
+                // logado
+                email.setTitulo("Arquivos Fiscais - " + obterMesString(mes - 1) + "/" + ano + " - "
+                        + fiscal.getCliente().getNome() + " - " + cnpj);
+
+                log += "Arquivos Fiscais - " + obterMesString(mes - 1) + "/" + ano + " - "
+                        + fiscal.getCliente().getNome() + " - " + cnpj + " enviado arquivo para: "
+                        + fiscal.getCliente().getContador().getEmail() + " ";
+
+                try {
+                    email.enviaEmailComAnexo();
+//                    status_ok = statusDAO.selectPerID(4);
+//                    status_nok = statusDAO.selectPerID(3);
+                    fiscal.setStatus(Status.CONCLUIDO);
+                } catch (EmailException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                    fiscal.setStatus(Status.FALHA_ENVIO);
+                }
+                try {
+                    log += fiscal.getStatus().name();
+                    fiscalDAO.update(fiscal);
+                } catch (SQLException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
+                regLogFileEmail(log);
+                System.out.println(log);
+//				atualizaTabela2();
+                System.out.println("Falta " + tarefaEnviarEmail.size() + "\n");
+//					view.mensagemView("Enviar E-mail", log, JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                try {
+                    Thread.sleep(500);
+                }catch (Exception e){
+
+                }
+                System.out.println("Lista de arquivos vazia TarefaPendente CNPJ: " + cnpj);
+            }
+
+        }
+
+    }
+
+    private void atualizaStatusFiscal(Status status) {
+//        try {
+//            Status status = new StatusDAO().selectPerID(id);
+//            Fiscal fiscal = getFiscal();
+//            fiscal.setStatus(status);
+//            fiscalDAO.updateStatusFiscal(fiscal); //@FIXME deve ser atualizado!!!
+//            atualizaTabela();
+//
+//        } catch (SQLException e) {
+//            // TODO Auto-generated catch block
+////			e.printStackTrace();
+//            System.out.println("Falha ao atualizar Status id: " + id + " fiscal id: " + getIdFiscal());
+//        }
+        Fiscal fiscal = getFiscal();
+        fiscal.setStatus(status);
+    }
+
+    public FiscalGUI getView() {
+        return view;
+    }
+
+}

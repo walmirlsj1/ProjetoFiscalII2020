@@ -1,0 +1,69 @@
+package module.fiscal;
+
+import global.service.PersistEngine;
+
+import javax.persistence.TypedQuery;
+import java.util.List;
+
+public class LivroFiscalDAO {
+
+    public LivroFiscalDAO() {
+
+    }
+
+    public void abrindo() {
+        if (!PersistEngine.getEntityManager().getTransaction().isActive())
+            PersistEngine.beginTransaction();
+    }
+
+    public void fechando() {
+        PersistEngine.commit();
+        PersistEngine.closeEntityManager();
+    }
+
+    public boolean insert(LivroFiscal livroFiscal) {
+
+        PersistEngine.persist(livroFiscal);
+
+        return true;
+    }
+
+    public boolean update(LivroFiscal livroFiscal) {
+        try {
+            PersistEngine.merge(livroFiscal);
+            PersistEngine.commit();
+            return true;
+        } catch (Exception e) {
+            PersistEngine.rollback();
+            System.out.println(e.getMessage());
+        }
+
+        return false;
+    }
+
+    public boolean delete(LivroFiscal livroFiscal) {
+        try {
+            PersistEngine.remove(livroFiscal);
+            PersistEngine.commit();
+            return true;
+        } catch (Exception e) {
+            PersistEngine.rollback();
+            System.out.println(e.getMessage());
+        }
+
+        return false;
+    }
+
+    public LivroFiscal selectPerID(int id) {
+        return (LivroFiscal) PersistEngine.findById(LivroFiscal.class, id);
+    }
+
+    public List<LivroFiscal> selectAll() {
+
+        String jpql = "SELECT c FROM LivroFiscal c";
+        TypedQuery<LivroFiscal> typedQuery = PersistEngine.getEntityManager().createQuery(jpql, LivroFiscal.class);
+
+        return typedQuery.getResultList();
+    }
+
+}

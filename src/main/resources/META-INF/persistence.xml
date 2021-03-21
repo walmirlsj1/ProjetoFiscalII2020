@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence http://xmlns.jcp.org/xml/ns/persistence/persistence_2_2.xsd"
+             version="2.2">
+
+    <persistence-unit name="Teste-01">
+        <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+        <properties>
+            <property name="cache.provider_class" value="org.hibernate.cache.NoCacheRegionFactoryAvailableException"/>
+            <property name="javax.persistence.jdbc.url" value="jdbc:firebirdsql:localhost/3050:C:/STORAGE/gdoor/SistemaFiscal/BancoFiscal/BANCO.FDB"/>
+            <property name="javax.persistence.jdbc.user" value="sysdba"/>
+            <property name="javax.persistence.jdbc.password" value="masterkey"/>
+            <property name="javax.persistence.jdbc.driver" value="org.firebirdsql.jdbc.FBDriver"/>
+
+            <property name="hibernate.dialect" value="org.hibernate.dialect.FirebirdDialect"/>
+
+            <!-- c3p0 config http://www.hibernate.org/214.html -->
+<!--            <property name="connection.provider_class" value="org.hibernate.c3p0.internal.C3P0ConnectionProvider"/>-->
+<!--            <property name="hibernate.c3p0.acquire_increment" value="1"/>-->
+<!--            <property name="hibernate.c3p0.idle_test_period" value="60"/>-->
+<!--            <property name="hibernate.c3p0.min_size" value="1"/>-->
+<!--            <property name="hibernate.c3p0.max_size" value="2"/>-->
+<!--            <property name="hibernate.c3p0.max_statements" value="50"/>-->
+<!--            <property name="hibernate.c3p0.timeout" value="0"/>-->
+<!--            <property name="hibernate.c3p0.acquireRetryAttempts" value="1"/>-->
+<!--            <property name="hibernate.c3p0.acquireRetryDelay" value="250"/>-->
+
+            <property name="hibernate.show_sql" value="true"/>
+            <property name="hibernate.format_sql" value="true"/>
+            <property name="hibernate.query.plan_cache_max_soft_references" value="2048"/>
+            <property name="hibernate.query.plan_cache_max_strong_references" value="128"/>
+
+<!--            <property name="org.hibernate.SQL" value="debug"/>-->
+<!--            <property name="org.hibernate.type.descriptor.sql" value="trace"/>-->
+<!--            <property name="hibernate.connection.provider_disables_autocommit" value="true"/>-->
+        </properties>
+    </persistence-unit>
+</persistence>

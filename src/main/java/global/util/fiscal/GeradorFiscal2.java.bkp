@@ -1,0 +1,132 @@
+package global.util;
+
+import global.Status;
+import module.cliente.Cliente;
+import module.fiscal.Fiscal;
+import module.fiscal.FiscalDAO;
+
+import java.sql.SQLException;
+import java.util.Calendar;
+import java.util.List;
+
+
+public class GeradorFiscal2 {
+    //	private ArrayList<Cliente> lstCliente;
+    private Calendar calendario;
+    private FiscalDAO fiscalDAO;
+
+    public GeradorFiscal2() {
+        carregarBase();
+    }
+
+    private void carregarBase() {
+        calendario = Calendar.getInstance();
+        fiscalDAO = new FiscalDAO();
+//        status_pendente = statusDAO.selectPerID(1);
+//        status_arquivos_na_pasta = statusDAO.selectPerID(2);
+
+    }
+
+    public int gerarFiscal(List<Cliente> lstCliente, int mes, int ano) {
+        LoadingFile folder_verification = new LoadingFile();
+        List<Fiscal> lstFiscal = null;
+
+        Fiscal fiscal;
+
+        int contador = 0;
+
+        for (Cliente cliente : lstCliente) {
+            try {
+                lstFiscal = fiscalDAO.selectFilterClienteMesAno(cliente, mes, ano);
+            } catch (SQLException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+                System.out.println("Ocorreu um erro no BD. GERADOR_FISCAL");
+            }
+
+            if (lstFiscal.isEmpty()) {
+                contador++;
+                fiscal = new Fiscal();
+
+                fiscal.setCliente(cliente);
+
+                if (folder_verification.findFolder(cliente.getSerial(), mes, ano)) {
+                    fiscal.setStatus(Status.AGUARDANDO_ENVIO);
+                } else {
+                    fiscal.setStatus(Status.PENDENTE);
+                }
+
+                fiscal.setDataEnvio(null);
+                fiscal.setMes(mes);
+                fiscal.setAno(ano);
+                fiscal.setModificado(calendario.getTime());
+
+                try {
+                    fiscalDAO.insert(fiscal);
+                    System.out.println(" Cliente " + cliente.getSerial() + " cadastrado com sucesso");
+                } catch (SQLException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            } else {
+                fiscal = lstFiscal.get(0);
+                if (fiscal.getStatus().ordinal() < 4) {
+                    boolean encontrei_arquivos = folder_verification.findFolder(cliente.getSerial(), mes, ano);
+                    if (fiscal.getStatus() == Status.PENDENTE && encontrei_arquivos) {
+                        fiscal.setStatus(Status.AGUARDANDO_ENVIO);
+                        try {
+                            fiscalDAO.update(fiscal);
+                        } catch (SQLException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    } else if (fiscal.getStatus() != Status.PENDENTE && !encontrei_arquivos) {
+                        fiscal.setStatus(Status.PENDENTE);
+                        try {
+                            fiscalDAO.update(fiscal);
+                        } catch (SQLException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    }
+                }
+
+            }
+        }
+        return contador;
+    }
+
+    public String obterMesString(int mes) {
+        String[] meses = {"1JAN", "2FEV", "3MAR", "4ABR", "5MAI", "6JUN", "7JUL", "8AGO", "9SET", "10OUT", "11NOV",
+                "12DEZ"};
+        return meses[mes];
+    }
+
+    public int getAnoAtual() {
+        return calendario.get(Calendar.YEAR);
+    }
+
+    public int getMesAtual() {
+        return calendario.get(Calendar.MONTH);
+    }
+
+//	public static void main(String[] args) {
+//		// TODO Auto-generated method stub
+//		
+//		ClienteDAO clienteDAO = new ClienteDAO();
+//
+//		ArrayList<Cliente> lstClientes = null;
+//
+//		try {
+//			lstClientes = clienteDAO.selectAll();
+//		} catch (SQLException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		
+//		GeradorFiscal gerFiscal = new GeradorFiscal(lstClientes);
+//		System.out.println("Fiscal registrados: " + gerFiscal.gerarFiscal());
+//		
+//	}
+
+}

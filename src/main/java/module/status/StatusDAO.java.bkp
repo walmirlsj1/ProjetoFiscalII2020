@@ -1,0 +1,85 @@
+package module.status;
+
+import java.sql.SQLException;
+import java.util.List;
+
+import Services.ConexaoBD;
+
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+
+public class StatusDAO {
+
+	private EntityManager em;
+
+	public StatusDAO() {
+		em = ConexaoBD.getEM();
+	}
+
+	public boolean insert(Status status) throws SQLException {
+
+		try {
+			em.getTransaction().begin();
+			em.persist(status);
+			em.getTransaction().commit();
+			return true;
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+		}
+		return false;
+	}
+
+	public boolean update(Status status) throws SQLException {
+
+		try {
+			em.getTransaction().begin();
+			em.merge(status);
+			em.getTransaction().commit();
+			return true;
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+		}
+
+		return false;
+
+	}
+
+	public boolean delete(Status status) throws SQLException {
+		try {
+			em.getTransaction().begin();
+			em.remove(status);
+			em.getTransaction().commit();
+			return true;
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+		}
+
+		return false;
+	}
+
+	public List<Status> selectFilter(String value, String filter) throws SQLException {
+
+		String jpql = "SELECT s1 FROM Status s1";
+		TypedQuery<Status> typedQuery = em.createQuery(jpql, Status.class);
+		List<Status> lista = typedQuery.getResultList();
+
+		return lista;
+	}
+
+	public Status selectPerID(int id) throws SQLException {
+
+		Status status = em.find(Status.class, id);
+
+		return status;
+	}
+
+	public List<Status> selectAll() throws SQLException {
+
+		String jpql = "SELECT s1 FROM Status s1";
+		TypedQuery<Status> typedQuery = em.createQuery(jpql, Status.class);
+		List<Status> lista = typedQuery.getResultList();
+
+		return lista;
+	}
+
+}

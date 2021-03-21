@@ -1,0 +1,207 @@
+package module.fiscal;
+
+import module.cliente.Cliente;
+import module.contador.Contador;
+import module.versao.Versao;
+
+import javax.swing.*;
+import javax.swing.table.TableRowSorter;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+public class FiscalHelper2 {
+
+	private final FiscalGUI view;
+	private FiscalTableModel tableModel;
+
+
+	public FiscalHelper2(FiscalGUI view) {
+		this.view = view;
+		view.getTxtContador().setEditable(false);
+		mostrarProgress(false);
+	}
+
+	public void mostrarProgress(boolean t){
+		view.getProgressBar().setMinimum(0);
+		view.getProgressBar().setMaximum(100);
+		view.getProgressBar().setVisible(t);
+		view.getLblProgress().setVisible(t);
+	}
+
+	public void atualizaProgress(int n, int max){
+		view.getLblProgress().setText("Processado " + n + " de " + max);
+//		view.getProgressBar().setValue(n);
+	}
+
+	public void preencherCmbMesFiscal(ArrayList<String> lstMes) {
+		DefaultComboBoxModel<String> cmbMesFiscalModel = new DefaultComboBoxModel<String>();
+
+		for (String mes : lstMes) {
+			cmbMesFiscalModel.addElement(mes);
+		}
+		view.getCmbMesFiscal().setModel(cmbMesFiscalModel);
+		Calendar calendario = Calendar.getInstance();
+		view.getCmbMesFiscal().setSelectedIndex(((int) calendario.get(Calendar.MONTH)) - 1);
+
+	}
+
+	public void preencherCmbAnoFiscal(ArrayList<String> lstAno) {
+		DefaultComboBoxModel<String> cmbAnoFiscalModel = new DefaultComboBoxModel<String>();
+
+		for (String ano : lstAno) {
+			cmbAnoFiscalModel.addElement(ano);
+		}
+		view.getCmbAnoFiscal().setModel(cmbAnoFiscalModel);
+
+		Calendar calendario = Calendar.getInstance();
+
+		int index = lstAno.indexOf(String.valueOf(calendario.get(Calendar.YEAR)));
+		view.getCmbAnoFiscal().setSelectedIndex(index);
+	}
+
+	public void preencherCmbVersao(List<Versao> lstVersao) {
+		DefaultComboBoxModel<Versao> comboBoxModel = (DefaultComboBoxModel<Versao>) view.getCmbVersao().getModel();
+
+		for (Versao versao : lstVersao) {
+			comboBoxModel.addElement(versao);
+		}
+	}
+	public void preencherTabela(List<Fiscal> lstFiscal) {
+		tableModel = new FiscalTableModel(lstFiscal);
+
+		view.getTable().setModel(tableModel);
+		view.getTable().setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+		view.getTable().setAutoCreateRowSorter(true);
+		view.getTable().setRowHeight(20);
+		view.getTable().getColumnModel().getColumn(0).setPreferredWidth(47); // id
+		view.getTable().getColumnModel().getColumn(1).setPreferredWidth(122); // serial
+		view.getTable().getColumnModel().getColumn(2).setPreferredWidth(216);// razao social
+		view.getTable().getColumnModel().getColumn(3).setPreferredWidth(131);// contador
+		view.getTable().getColumnModel().getColumn(4).setPreferredWidth(51);// enviardados
+		view.getTable().getColumnModel().getColumn(5).setPreferredWidth(106);// status
+		view.getTable().getColumnModel().getColumn(6).setPreferredWidth(86);// data
+		List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+		sortKeys.add(new RowSorter.SortKey(1, SortOrder.ASCENDING));
+
+		TableRowSorter<FiscalTableModel> sorter = (TableRowSorter) view.getTable().getRowSorter();
+		sorter.setSortKeys( sortKeys );
+
+//		if (view.getTable().getRowCount() > 0) {
+//			view.getTable().setRowSelectionInterval(index, index);
+//			view.getTable().scrollRectToVisible(view.getTable().getCellRect(index, 0, true));
+//		}
+	}
+//	public void preencherTabela(DefaultTableModel tableModel) {
+//
+//		int index = 0;
+//		if(view.getTable().getModel() != null)
+//			view.getTable().getSelectedRow();
+//
+//		view.getTable().setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+//		view.getTable().setModel(tableModel);
+//		view.getTable().setRowHeight(20);
+//		view.getTable().getColumnModel().getColumn(0).setPreferredWidth(47); // id
+//		view.getTable().getColumnModel().getColumn(1).setPreferredWidth(122); // serial
+//		view.getTable().getColumnModel().getColumn(2).setPreferredWidth(216);// razao social
+//		view.getTable().getColumnModel().getColumn(3).setPreferredWidth(131);// contador
+//		view.getTable().getColumnModel().getColumn(4).setPreferredWidth(51);// enviardados
+//		view.getTable().getColumnModel().getColumn(5).setPreferredWidth(106);// status
+//		view.getTable().getColumnModel().getColumn(6).setPreferredWidth(86);// data
+//
+//		// selecionaRow(index);
+//		if (index > view.getTable().getRowCount()) {
+//			index = 0;
+//		}
+//		if (view.getTable().getRowCount() > 0) {
+//			view.getTable().setRowSelectionInterval(index, index);
+//			view.getTable().scrollRectToVisible(view.getTable().getCellRect(index, 0, true));
+//		}
+//
+//	}
+
+	public void preencherCampos(Cliente cliente) {
+		view.getTxtNome().setText(cliente.getNome());
+		view.getTxtCNPJ().setText(cliente.getCnpj());
+		view.getTxtTelefone().setText(cliente.getTelefone());
+		view.getTxtSerial().setText(cliente.getSerial());
+
+		view.getCmbVersao().setSelectedItem(cliente.getVersao());
+
+		this.setContador(cliente.getContador());
+
+		view.getTxtEmail().setText(cliente.getEmail());
+		view.getTxtIdRemoto().setText(cliente.getIdRemoto());
+		view.getChbEnviaDadosContador().setSelected(cliente.getEnviarDadosContador());
+//		focusInTabCad(1);
+	}
+
+	public void focusInTabCad(int index) {
+		view.getTabbedPane().setSelectedIndex(index);
+	}
+
+	public int getActiveTabCad() {
+		return view.getTabbedPane().getSelectedIndex();
+	}
+
+	public void setContador(Contador contador) {
+
+		view.setContadorId(contador.getId());
+		view.getTxtContador().setText(contador.getNome());
+
+	}
+
+	public void bloquearCampos(Boolean value) {
+		value = !value;
+		view.getTxtNome().setEnabled(value);
+		view.getTxtCNPJ().setEnabled(value);
+		view.getTxtTelefone().setEnabled(value);
+		view.getTxtSerial().setEnabled(value);
+
+		view.getCmbVersao().setEnabled(value);
+		view.getBtnProcuraContadorDetalhes().setEnabled(value);
+
+		view.getTxtEmail().setEnabled(value);
+		view.getTxtIdRemoto().setEnabled(value);
+		view.getChbEnviaDadosContador().setEnabled(value);
+
+	}
+
+	public int tablePegaID(MouseEvent evt) {
+		JTable table = view.getTable();
+		int row = table.rowAtPoint(evt.getPoint());
+		int col = table.columnAtPoint(evt.getPoint());
+		if (row >= 0 && col >= 0) {
+			try {
+				return (Integer) table.getModel().getValueAt(row, 0);
+			} catch (Exception e) {
+				return -1;
+			}
+		}
+		return -1;
+	}
+
+
+	public void bloquearBotoes(Boolean value) {
+		// TODO Auto-generated method stub
+		value = !value;
+
+	}
+
+	public Fiscal getFiscal(int rowIndex) {
+		return tableModel.getFiscal(rowIndex);
+	}
+
+	public void insertFiscalTableModel(Fiscal fiscal) {
+		tableModel.add(fiscal);
+	}
+
+	public void updateFiscalTableModel(int rowIndex, Fiscal fiscal) {
+		tableModel.update(rowIndex, fiscal);
+	}
+
+	public void removeFiscalTableModel(int rowIndex) {
+		tableModel.remove(rowIndex);
+	}
+}

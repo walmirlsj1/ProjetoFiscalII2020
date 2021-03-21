@@ -1,0 +1,135 @@
+package module.status;
+
+import module.usuario.Usuario;
+
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+
+public class StatusController {
+
+	private final StatusGUI view;
+	private final StatusHelper helper;
+	private final Usuario usuarioLogado;
+
+	public StatusController(Usuario usuarioLogado) {
+		this.usuarioLogado = usuarioLogado;
+		this.view = new StatusGUI();
+		this.helper = new StatusHelper(view, usuarioLogado);
+		initialize();
+	}
+
+	public void initialize() {
+		this.view.getTable().addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent evt) {
+				if (evt.getClickCount() == 2) {
+					evt.consume();
+					tablePegaID(evt);
+				}
+			}
+		});
+
+		this.view.getBtnExcluir().addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				excluir();
+			}
+		});
+		this.view.getBtnNovo().addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				limpaTela();
+			}
+		});
+		this.view.getBtnEditar().addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				salvar();
+			}
+		});
+
+		helper.initialize();
+		atualizaTabela();
+	}
+
+	public void atualizaTabela() {
+		StatusDAO statusDAO = new StatusDAO();
+		List<Status> tipoSys = new ArrayList<Status>();
+		try {
+			tipoSys = statusDAO.selectAll();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		helper.preencherTabela(tipoSys);
+	}
+
+	public void tablePegaID(MouseEvent evt) {
+		StatusDAO statusDAO = new StatusDAO();
+		int id = helper.tablePegaID(evt);
+		Status status = null;
+		try {
+			status = statusDAO.selectPerID(id);
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		helper.preencherCampos(status);
+	}
+
+	public void limpaTela() {
+		helper.limpaTela();
+	}
+
+	public void salvar() {
+		Status status = helper.pegaCampos();
+		if (status == null)
+			return;
+
+		if (status.getId() == -1) {
+			// Cadastrar
+			StatusDAO statusDAO = new StatusDAO();
+			try {
+				statusDAO.insert(status);
+			} catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+			// Editar
+			StatusDAO statusDAO = new StatusDAO();
+			try {
+				statusDAO.update(status);
+			} catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		helper.limpaTela();
+		atualizaTabela();
+	}
+
+	public void excluir() {
+		Status status = helper.pegaCampos();
+		if (status == null)
+			return;
+
+		StatusDAO statusDAO = new StatusDAO();
+		try {
+			statusDAO.delete(status);
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		atualizaTabela();
+	}
+
+	public StatusGUI getView() {
+		return view;
+	}
+
+}

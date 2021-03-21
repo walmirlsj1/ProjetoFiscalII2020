@@ -1,0 +1,70 @@
+package module.status;
+
+import module.usuario.Usuario;
+import module.fiscal.Fiscal;
+
+import javax.persistence.*;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+@Entity
+public class Status {
+	@Id
+	@Column(name = "ID")
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private int id;
+
+	@Column(name = "DESCRICAO")
+	private String descricao;
+
+	@OneToOne(cascade = CascadeType.ALL)
+	@JoinColumn(name = "USUARIO_ID", referencedColumnName = "ID")
+	private Usuario usuario;
+
+	@Column(name = "MODIFICADO")
+	private Date modificado;
+	
+	
+	public Status() {
+		
+	}
+	
+	public Status(int id, String descricao, Usuario usuario) {
+		super();
+		this.id = id;
+		this.descricao = descricao;
+		this.modificado = new Date();
+		this.usuario = usuario;
+	}
+	
+	public Status(int id, String descricao, Usuario usuario, String modificado) {
+		super();
+		this.id = id;
+		this.descricao = descricao;
+//		this.modificado = modificado;
+		this.usuario = usuario;
+		try {
+			this.modificado = new SimpleDateFormat("dd/MM/yyyy").parse(modificado);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			Logger.getLogger(Fiscal.class.getName()).log(Level.SEVERE, null, e);
+//			e.printStackTrace();
+		}
+	}
+	
+	public int getId() { return id; }
+	public void setId(int id) { this.id = id; }
+	
+	public String getDescricao() { return descricao; }
+	public void setDescricao(String descricao) { this.descricao = descricao; }
+	
+	public Date getModificado() { return modificado; }
+	public void setModificado(Date modificado) { this.modificado = modificado; }
+	
+	public Usuario getUsuario() { return usuario; }
+	public void setUuario(Usuario usuario) { this.usuario = usuario; }
+
+}
